@@ -119,6 +119,8 @@ services:
 
   tuniu-mcp:
     image: pytravel-backend:1.1.0
+    # 复用 mock-enterprise 本地构建的 pytravel-backend:1.1.0，禁止向远程镜像仓库拉取
+    pull_policy: never
     container_name: pytravel-tuniu-mcp
     restart: unless-stopped
     depends_on:
@@ -132,6 +134,7 @@ services:
 
   oa-mcp:
     image: pytravel-backend:1.1.0
+    pull_policy: never
     container_name: pytravel-oa-mcp
     restart: unless-stopped
     depends_on:
@@ -146,6 +149,7 @@ services:
 
   erp-expense-mcp:
     image: pytravel-backend:1.1.0
+    pull_policy: never
     container_name: pytravel-erp-expense-mcp
     restart: unless-stopped
     depends_on:
@@ -162,6 +166,7 @@ services:
 
   weather-mcp:
     image: pytravel-backend:1.1.0
+    pull_policy: never
     container_name: pytravel-weather-mcp
     restart: unless-stopped
     environment:
@@ -173,6 +178,7 @@ services:
 
   api-gateway:
     image: pytravel-backend:1.1.0
+    pull_policy: never
     container_name: pytravel-api-gateway
     restart: unless-stopped
     depends_on:

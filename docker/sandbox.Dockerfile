@@ -4,9 +4,15 @@
 # ==============================================================================
 FROM python:3.12-slim
 
+# 构建时默认使用阿里云 PyPI 镜像（海外服务器可通过 --build-arg 覆盖）
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_INDEX_URL=${PIP_INDEX_URL} \
+    PIP_TRUSTED_HOST=${PIP_TRUSTED_HOST}
 
 RUN pip install --no-cache-dir pandas==2.2.3 openpyxl==3.1.5 \
     && useradd -m -u 10001 sandbox \

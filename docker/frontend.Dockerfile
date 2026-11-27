@@ -3,9 +3,11 @@
 # ==============================================================================
 FROM node:22-alpine AS builder
 
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 WORKDIR /web
 COPY frontend/package.json ./
-RUN npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps --registry=${NPM_REGISTRY}
 COPY frontend/ ./
 RUN npm run build
 

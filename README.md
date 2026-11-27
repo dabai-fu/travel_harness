@@ -119,22 +119,28 @@ systemctl enable --now docker
 ```
 
 ### 4.2 （杭州/北京/上海等中国内地服务器必配）配置 Docker 镜像加速
-如果不配镜像加速，拉取 `pgvector`、`redis`、`python:3.12-slim`、`node:22-alpine` 可能会超时失败。执行以下命令一次性配好：
+如果不配镜像加速，拉取 `pgvector`、`redis`、`python:3.12-slim`、`node:22-alpine` 会非常慢甚至超时；**同时注意公共免费镜像站限流严重（部分站点还会触发白名单拦截）**。阿里云 ECS 最快最稳的方式是使用**个人免费阿里云 ACR 专属加速地址**：
+
+1. 浏览器登录阿里云容器镜像服务控制台：<https://cr.console.aliyun.com/>
+2. 左侧菜单点击 **镜像工具 -> 镜像加速器**，复制你的专属加速地址（形如 `https://xxxxxxxx.mirror.aliyuncs.com`）。
+3. 将 `<你的专属前缀>` 替换为刚复制的地址，在服务器执行：
 
 ```bash
 sudo mkdir -p /etc/docker
 sudo tee /etc/docker/daemon.json <<'EOF'
 {
   "registry-mirrors": [
+    "https://<你的专属前缀>.mirror.aliyuncs.com",
     "https://docker.1ms.run",
-    "https://docker.xuanyuan.me",
-    "https://docker.m.daocloud.io"
+    "https://docker.xuanyuan.me"
   ]
 }
 EOF
 sudo systemctl daemon-reload
 sudo systemctl restart docker
 ```
+
+> 说明：项目内的 `docker/backend.Dockerfile`、`docker/sandbox.Dockerfile`、`docker/frontend.Dockerfile` 已默认内置阿里云 `apt` / `PyPI` 及淘宝 `npmmirror` 加速源，无需再手动配置容器内包管理器镜像。
 
 ---
 

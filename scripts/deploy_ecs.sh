@@ -34,11 +34,12 @@ PY
   echo "⚠️  请编辑 .env 填入你的 OPENAI_API_KEY（若暂不填可先改 LLM_MODE=mock 测试全栈）。"
 fi
 
-echo "==> [2/4] 构建并启动 Docker Compose 全栈服务 ..."
+echo "==> [2/4] 先构建本地业务镜像（backend / sandbox / frontend），再启动全栈服务 ..."
+docker compose build mock-enterprise sandbox-pool frontend
 if [[ "$WITH_LANGFUSE" == "true" ]]; then
-  docker compose --profile observability up -d --build
+  docker compose --profile observability up -d
 else
-  docker compose up -d --build
+  docker compose up -d
 fi
 
 echo "==> [3/4] 向 PostgreSQL 16 灌入幂等仿真多租户测试数据 ..."

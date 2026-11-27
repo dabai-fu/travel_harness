@@ -1,0 +1,73 @@
+# ==============================================================================
+# PyTravel-Harness 工程配置文件 (PEP 621 / uv / pip / pytest / ruff)
+# 对应文档章节：九、技术栈清单、SSE 协议与项目目录结构 (9.1 & 9.3)
+# ==============================================================================
+
+[build-system]
+requires = ["setuptools>=69.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytravel-harness"
+version = "1.1.0"
+description = "企业级多智能体差旅协同与预算归因分析系统 (Agent Harness + LangGraph + FastMCP)"
+requires-python = ">=3.12"
+dependencies = [
+    # Web 网关与强类型校验
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "httpx>=0.27.0",
+    "python-multipart>=0.0.12",
+    "python-dotenv>=1.0.1",
+    # 安全加密与鉴权 (AES-256-GCM / JWT / HMAC)
+    "cryptography>=43.0.0",
+    "pyjwt>=2.9.0",
+    # 数据库与缓存 (PostgreSQL 16 + pgvector + Redis 7)
+    "sqlalchemy[asyncio]>=2.0.35",
+    "asyncpg>=0.30.0",
+    "redis>=5.2.0",
+    # LangGraph & LangChain 多智能体编排核心
+    "langgraph>=0.2.50",
+    "langgraph-checkpoint-postgres>=2.0.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "langchain-core>=0.3.20",
+    "langchain-openai>=0.2.10",
+    # MCP 协议服务端与客户端
+    "fastmcp>=2.0.0",
+    # 预算沙箱精算与 Docker SDK
+    "pandas>=2.2.3",
+    "openpyxl>=3.1.5",
+    "docker>=7.1.0",
+    # Langfuse 可观测性 SDK
+    "langfuse>=2.50.0",
+    # 远程容器断点调试支撑
+    "debugpy>=1.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["apps*", "scripts*", "eval*"]
+
+[tool.pytest.ini_options]
+# 启用 pytest-asyncio 自动模式，无需在每个异步测试上重复写复杂的 loop fixture
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B008"]

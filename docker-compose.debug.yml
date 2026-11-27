@@ -1,0 +1,66 @@
+# ==============================================================================
+# PyTravel-Harness 远程开发与断点调试覆盖编排文件
+# 使用方法（需配合基础 docker-compose.yml 叠加启动）：
+#   docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d
+#
+# 核心设计说明：
+#   1. 挂载源码目录（./apps:/app/apps、./scripts:/app/scripts），修改代码无需每次 docker build；
+#   2. api-gateway 以 `python -m debugpy --listen 0.0.0.0:5678` 启动，供 VS Code 按 F5 单步断点；
+#      （注意：调试时不启用 uvicorn --reload，避免父子进程 fork 导致 debugpy 断点脱落）
+#   3. 调试端口 5678 与数据库端口 5432/6379 仅绑定在服务器 127.0.0.1，
+#      由 VS Code Remote-SSH 自动转发到本地，绝不暴露给公网，兼顾安全与便利。
+# ==============================================================================
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  api-gateway:
+    volumes:
+      - ./apps:/app/apps
+      - ./scripts:/app/scripts
+      - ./eval:/app/eval
+    ports:
+      - "127.0.0.1:5678:5678"
+    # 如果需要拦截 FastAPI 启动阶段（lifespan），可把下面命令加上 --wait-for-client
+    command:
+      [
+        "python",
+        "-Xfrozen_modules=off",
+        "-m",
+        "debugpy",
+        "--listen",
+        "0.0.0.0:5678",
+        "-m",
+        "uvicorn",
+        "apps.api_gateway.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ]
+
+  tuniu-mcp:
+    volumes:
+      - ./apps:/app/apps
+
+  oa-mcp:
+    volumes:
+      - ./apps:/app/apps
+
+  erp-expense-mcp:
+    volumes:
+      - ./apps:/app/apps
+
+  weather-mcp:
+    volumes:
+      - ./apps:/app/apps
+
+  mock-enterprise:
+    volumes:
+      - ./apps:/app/apps

@@ -1,0 +1,57 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "1. Docker 容器附加调试: api-gateway (debugpy :5678)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/app"
+        }
+      ],
+      "justMyCode": true
+    },
+    {
+      "name": "2. 宿主机直跑调试: FastAPI 网关 (uvicorn)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "apps.api_gateway.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": true
+    },
+    {
+      "name": "3. 调试当前打开的 Pytest 测试文件",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "${file}",
+        "-v",
+        "-s"
+      ],
+      "justMyCode": false
+    },
+    {
+      "name": "4. 调试离线自动化 Eval (eval/run_eval.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/eval/run_eval.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

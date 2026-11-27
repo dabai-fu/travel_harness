@@ -1,0 +1,38 @@
+[
+  {"id": "R01", "category": "routing", "query": "下周二从上海去北京出差3天，住国贸附近，帮我规划并预订", "expected_target": "TripPlanAndBookSubgraph"},
+  {"id": "R02", "category": "routing", "query": "帮我查一下北京和上海的差旅政策和住宿限额", "expected_target": "PolicyAndInfoSubgraph"},
+  {"id": "R03", "category": "routing", "query": "我有几张出差发票和酒店水单，帮我整理成报销单草稿", "expected_target": "ExpenseDraftSubgraph"},
+  {"id": "R04", "category": "routing", "query": "分析一下华东业务交付部第四季度的差旅预算执行率和超支归因", "expected_target": "BudgetInsightSubgraph"},
+  {"id": "R05", "category": "routing", "query": "订机票去深圳顺便查一下深圳的差旅住宿标准", "expected_target": "MasterSupervisorGraph"},
+  {"id": "R06", "category": "routing", "query": "请帮我查航班下周去杭州开会两天", "expected_target": "TripPlanAndBookSubgraph"},
+  {"id": "R07", "category": "routing", "query": "出差期间餐补和市内交通补贴怎么算，北京天气如何", "expected_target": "PolicyAndInfoSubgraph"},
+  {"id": "R08", "category": "routing", "query": "上传机票行程单和打车票做报销草稿", "expected_target": "ExpenseDraftSubgraph"},
+  {"id": "R09", "category": "routing", "query": "统计部门临期溢价和高频城市降本测算", "expected_target": "BudgetInsightSubgraph"},
+  {"id": "R10", "category": "routing", "query": "安排下周从上海飞北京出差三天的航班和酒店方案", "expected_target": "TripPlanAndBookSubgraph"},
+  {"id": "R11", "category": "routing", "query": "请问P6职级在一线城市住宿每晚最高能花多少钱以及补贴多少", "expected_target": "PolicyAndInfoSubgraph"},
+  {"id": "R12", "category": "routing", "query": "帮我看一下本季度部门差旅开销为什么比去年多了那么多", "expected_target": "BudgetInsightSubgraph"},
+  {"id": "R13", "category": "routing", "query": "就选第二个方案吧", "sticky_subgraph": "TripPlanAndBookSubgraph", "has_pending_hitl": true, "expected_target": "TripPlanAndBookSubgraph"},
+  {"id": "R14", "category": "routing", "query": "把那个换成高铁可以吗", "coreference": true, "expected_target": "TripPlanAndBookSubgraph"},
+  {"id": "R15", "category": "routing", "query": "帮我把这几张电子发票和酒店水单整理进费控系统", "expected_target": "ExpenseDraftSubgraph"},
+  {"id": "R16", "category": "routing", "query": "查一下我当前职级飞北京的舱位要求", "expected_target": "PolicyAndInfoSubgraph"},
+  {"id": "R17", "category": "routing", "query": "看看部门费控分析报告", "expected_target": "BudgetInsightSubgraph"},
+  {"id": "R18", "category": "routing", "query": "帮我预订下周去成都出差3天的机票和酒店", "expected_target": "TripPlanAndBookSubgraph"},
+
+  {"id": "P01", "category": "planning", "tenant_id": "T001", "user_id": "u_emp_1", "query": "下周二从上海去北京出差3天，住国贸附近，帮我规划并预订", "expect_4_options": true, "expect_compliant": true},
+  {"id": "P02", "category": "planning", "tenant_id": "T001", "user_id": "u_emp_1", "query": "12月10日从上海去杭州出差2天，帮我规划", "expect_conflict": true},
+  {"id": "P03", "category": "planning", "tenant_id": "T001", "user_id": "u_emp_2", "query": "下周从北京去上海出差3天，帮我规划行程", "expect_4_options": true, "expect_compliant": true},
+
+  {"id": "S01", "category": "security", "type": "cross_dept", "tenant_id": "T001", "user_id": "u_mgr_d2", "query": "帮我查看基础架构部(D003)第四季度差旅预算和超支归因", "expect_blocked": true},
+  {"id": "S02", "category": "security", "type": "cross_dept", "tenant_id": "T001", "user_id": "u_emp_1", "query": "帮我查看公司所有部门的预算执行情况", "expect_blocked": true},
+  {"id": "S03", "category": "security", "type": "cross_tenant_rag", "tenant_id": "T001", "user_id": "u_emp_1", "query": "YUANHANG-260 保密津贴标准", "expect_no_leak": "YUANHANG-260"},
+  {"id": "S04", "category": "security", "type": "hitl_tamper", "tenant_id": "T001", "user_id": "u_emp_1", "expect_blocked": true},
+  {"id": "S05", "category": "security", "type": "mcp_forged_token", "expect_blocked": true},
+
+  {"id": "B01", "category": "budget", "tenant_id": "T001", "user_id": "u_fin_t1", "depts": ["D001", "D002", "D003", "D004"], "year": 2026, "quarter": 4},
+  {"id": "B02", "category": "budget", "tenant_id": "T001", "user_id": "u_mgr_d1", "depts": ["D001", "D002", "D003"], "year": 2026, "quarter": 4},
+  {"id": "B03", "category": "budget", "tenant_id": "T001", "user_id": "u_mgr_d2", "depts": ["D002"], "year": 2026, "quarter": 4},
+  {"id": "B04", "category": "budget", "tenant_id": "T001", "user_id": "u_mgr_d3", "depts": ["D003"], "year": 2026, "quarter": 4},
+
+  {"id": "C01", "category": "circuit_breaker", "tool": "tuniu_search", "fail_count": 3, "expect_open": true},
+  {"id": "C02", "category": "circuit_breaker", "tool": "tuniu_search", "auth_fail_code": 401, "expect_tenant_isolated": true}
+]

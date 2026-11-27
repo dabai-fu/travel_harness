@@ -1,0 +1,238 @@
+# ==============================================================================
+# PyTravel-Harness 生产级全栈 Docker Compose 编排
+# 适用环境：Ubuntu 2核8G 阿里云 ECS（及任何支持 Docker Compose v2 的 Linux 服务器）
+#
+# 服务拓扑（共 10 个核心生产服务 + 1 个可选 Langfuse 可观测服务）：
+#   1. postgres       : PostgreSQL 16 + pgvector + RLS（16张表 + Checkpointer + 独立 langfuse 库）
+#   2. redis          : Redis 7（带密码保护，支撑 Session / 熔断Lua / SSE Stream / 集群取消）
+#   3. sandbox-pool   : 禁网限核限内存预热 Python 沙箱池（挂载只读脚本与共享卷 /workspace）
+#   4. mock-enterprise: 模拟企业老 OA & 费控 ERP REST 服务
+#   5. tuniu-mcp      : 途牛商旅 FastMCP Streamable HTTP 容器 (:8021)
+#   6. oa-mcp         : 企业 OA FastMCP Streamable HTTP 容器 (:8022)
+#   7. erp-expense-mcp: 费控 ERP FastMCP Streamable HTTP 容器 (:8023，共享沙箱卷导出 CSV)
+#   8. weather-mcp    : 天气预报 FastMCP Streamable HTTP 容器 (:8024)
+#   9. api-gateway    : FastAPI + LangGraph Agent Harness 核心网关 (:8000)
+#  10. frontend       : Nginx + React 19 生产构建产物（关闭 SSE 缓冲，暴露宿主机 :80）
+#  11. langfuse       : (--profile observability) 自部署全链路可观测平台 (:3000)
+# ==============================================================================
+
+x-backend-env: &backend-env
+  APP_STORAGE_MODE: ${APP_STORAGE_MODE:-postgres}
+  REDIS_MODE: ${REDIS_MODE:-redis}
+  SANDBOX_MODE: ${SANDBOX_MODE:-docker}
+  LLM_MODE: ${LLM_MODE:-openai}
+  TUNIU_MODE: ${TUNIU_MODE:-mock}
+  MCP_MODE: ${MCP_MODE:-http}
+  DATABASE_URL: postgresql+asyncpg://pytravel_app:pytravel_app_pass@postgres:5432/pytravel
+  DATABASE_ADMIN_URL: postgresql+asyncpg://${POSTGRES_USER:-pytravel}:${POSTGRES_PASSWORD:-pytravel_pass}@postgres:5432/${POSTGRES_DB:-pytravel}
+  REDIS_URL: redis://:${REDIS_PASSWORD:-pytravel_redis_pass}@redis:6379/0
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-pytravel_redis_pass}
+  JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-in-production-32bytes}
+  INTERNAL_TOKEN_SECRET: ${INTERNAL_TOKEN_SECRET:-change-this-internal-secret-32bytes}
+  OA_WEBHOOK_SECRET: ${OA_WEBHOOK_SECRET:-change-this-webhook-secret-32bytes}
+  AES_MASTER_KEY_V1: ${AES_MASTER_KEY_V1:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+  LLM_MAIN_MODEL: ${LLM_MAIN_MODEL:-qwen-max}
+  LLM_FAST_MODEL: ${LLM_FAST_MODEL:-qwen-turbo}
+  LLM_VISION_MODEL: ${LLM_VISION_MODEL:-qwen-vl-max}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-v3}
+  SANDBOX_WORKSPACE_ROOT: /workspace
+  SANDBOX_DOCKER_IMAGE: pytravel-sandbox:py312
+  SANDBOX_WARM_CONTAINER: pytravel-sandbox-pool
+  TUNIU_MCP_URL: http://tuniu-mcp:8021/mcp
+  OA_MCP_URL: http://oa-mcp:8022/mcp
+  ERP_MCP_URL: http://erp-expense-mcp:8023/mcp
+  WEATHER_MCP_URL: http://weather-mcp:8024/mcp
+  MOCK_ENT_BASE_URL: http://mock-enterprise:8010
+  LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+  LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse:3000}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-dev}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-dev}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: pytravel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pytravel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pytravel_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-pytravel}
+    # 生产安全：默认仅在 Docker 内网开放，不向公网暴露 5432 端口
+    expose:
+      - "5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/01_init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pytravel} -d ${POSTGRES_DB:-pytravel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    container_name: pytravel-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-pytravel_redis_pass}"]
+    expose:
+      - "6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-pytravel_redis_pass} ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  sandbox-pool:
+    build:
+      context: .
+      dockerfile: docker/sandbox.Dockerfile
+    image: pytravel-sandbox:py312
+    container_name: pytravel-sandbox-pool
+    restart: unless-stopped
+    # 沙箱物理隔离：彻底断网 + 限 CPU + 限内存 + 限进程数
+    network_mode: "none"
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 64
+    volumes:
+      - sandbox_data:/workspace
+
+  mock-enterprise:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    image: pytravel-backend:1.1.0
+    container_name: pytravel-mock-enterprise
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+    command: ["uvicorn", "apps.mock_enterprise_systems.server:app", "--host", "0.0.0.0", "--port", "8010"]
+    expose:
+      - "8010"
+
+  tuniu-mcp:
+    image: pytravel-backend:1.1.0
+    container_name: pytravel-tuniu-mcp
+    restart: unless-stopped
+    depends_on:
+      - mock-enterprise
+    environment:
+      <<: *backend-env
+      MCP_PORT: "8021"
+    command: ["python", "-m", "apps.mcp_servers.tuniu_mcp"]
+    expose:
+      - "8021"
+
+  oa-mcp:
+    image: pytravel-backend:1.1.0
+    container_name: pytravel-oa-mcp
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+      MCP_PORT: "8022"
+    command: ["python", "-m", "apps.mcp_servers.oa_mcp"]
+    expose:
+      - "8022"
+
+  erp-expense-mcp:
+    image: pytravel-backend:1.1.0
+    container_name: pytravel-erp-expense-mcp
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+      MCP_PORT: "8023"
+    volumes:
+      - sandbox_data:/workspace
+    command: ["python", "-m", "apps.mcp_servers.erp_expense_mcp"]
+    expose:
+      - "8023"
+
+  weather-mcp:
+    image: pytravel-backend:1.1.0
+    container_name: pytravel-weather-mcp
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      MCP_PORT: "8024"
+    command: ["python", "-m", "apps.mcp_servers.weather_mcp"]
+    expose:
+      - "8024"
+
+  api-gateway:
+    image: pytravel-backend:1.1.0
+    container_name: pytravel-api-gateway
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      sandbox-pool:
+        condition: service_started
+      tuniu-mcp:
+        condition: service_started
+      oa-mcp:
+        condition: service_started
+      erp-expense-mcp:
+        condition: service_started
+      weather-mcp:
+        condition: service_started
+    environment:
+      <<: *backend-env
+    volumes:
+      - sandbox_data:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    image: pytravel-frontend:1.1.0
+    container_name: pytravel-frontend
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "80:80"
+
+  langfuse:
+    image: langfuse/langfuse:2
+    profiles: ["observability"]
+    container_name: pytravel-langfuse
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pytravel}:${POSTGRES_PASSWORD:-pytravel_pass}@postgres:5432/langfuse
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-pytravel-langfuse-secret-change-me}
+      SALT: ${LANGFUSE_SALT:-pytravel-langfuse-salt-change-me}
+      NEXTAUTH_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  redisdata:
+  sandbox_data:

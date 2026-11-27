@@ -17,6 +17,7 @@ build/
 # 前端依赖与打包产物
 frontend/node_modules/
 frontend/dist/
+*.tsbuildinfo
 
 # 敏感环境变量文件（只保留 .env.example 与 .env.production.example 模板）
 .env
